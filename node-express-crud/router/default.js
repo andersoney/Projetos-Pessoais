@@ -2,20 +2,34 @@ var express = require('express');
 var router = express.Router();
 var jwt = require('jsonwebtoken');
 const userRoute = require('./users.route')
-router.use('/users', userRoute);
+
 const config = require('../config')
 
 let publicRoute = ['/login', '/about']
-
-router.use(function (req, res, next) {
+router.use((req, res, next) => {
     console.log(123);
     let moment = require('moment');
     moment.locale('PT-BR')
     console.log('Time: ', moment().format('LLL'));
-    console.log(publicRoute.indexOf(req.originalUrl));
+    console.log();
+    if (publicRoute.indexOf(req.originalUrl) != -1) {
+        next();
+    } else {
+        if (req.headers.token) {
+            let user = jwt.verify(req.headers.token, config.jwtConfig.privateKey);
+            if (moment().isBefore(moment(user.timeExpiration))) {
+                next();
+            } else {
+                res.status(401).send({ sucess: false, msg: "Token Expirado", type: 'Expired_token ', data: jwt.verify(req.headers.token, config.jwtConfig.privateKey), callback: '/login' });
+            }
+        } else {
+            res.status(401).send({ sucess: false, msg: "Usuario não autorizado", type: 'Unauthorized ', callback: '/login' });
+        }
+    }
     // console.log();
-    next();
+
 });
+
 // define the home page route
 router.post('/login', async (req, res) => {
     const UserModel = require('../models/userModel');
@@ -23,8 +37,9 @@ router.post('/login', async (req, res) => {
     let data = { userName: req.body.userName.toLowerCase() };
     let user = await UserModel.findOne({ where: data });
     if (user && await user.validPassword(req.body.password)) {
-        user.timeExpiration();
-        res.send({ sucess: true, data: user, token: jwt.sign(user.toJSON(), config.jwtConfig.privateKey) });
+        let data = user.toJSON();
+        data.timeExpiration = user.timeExpiration();
+        res.send({ sucess: true, data: user, token: jwt.sign(data, config.jwtConfig.privateKey) });
     } else {
         res.status(401).send({ sucess: false, msg: "Usuario não autorizado", type: 'Unauthorized ' });
     }
@@ -33,5 +48,7 @@ router.post('/login', async (req, res) => {
 router.get('/about', function (req, res) {
     res.send('About birds');
 });
+
+router.use('/users', userRoute);
 
 module.exports = router;

@@ -17,7 +17,7 @@ class UserModel extends Model {
         return values;
     }
     timeExpiration() {
-        this.expiration = moment().add(4, 'hour').toDate();
+        return moment().add(4, 'hour').toDate();
     }
 }
 
